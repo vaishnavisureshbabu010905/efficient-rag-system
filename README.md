@@ -278,6 +278,6 @@ Built as a comprehensive portfolio project demonstrating:
 
 ---
 
-**Status**: M1 ✅ | M2 ✅ | M3 ✅ | M4 ✅ | M5-M8 📋  
-**Tests**: 62/62 passing  
+**Status**: M1 ✅ | M2 ✅ | M3 ✅ | M4 ✅ | M5 ✅ | M6-M8 📋  
+**Tests**: 74/74 passing  
 **Python**: 3.8+
