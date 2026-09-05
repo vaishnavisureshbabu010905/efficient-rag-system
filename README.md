@@ -24,7 +24,25 @@ Documents (PDF/TXT) → Text Extraction → Chunking → Metadata → JSON Outpu
 
 Features: Multi-format ingestion, smart extraction, configurable chunking, rich metadata, stable chunk IDs.
 
-### ✅ Milestone 2: Dense Embedding + FAISS Retrieval (NEW)
+### ✅ Milestone 2: Dense Embedding + FAISS Retrieval (M2)
+
+Dense baseline for later comparison:
+```
+M1 Chunks → Dense Embeddings → FAISS Index → Semantic Search
+```
+
+Features: SentenceTransformer embeddings, FAISS indexing, cosine similarity search, persistence, CLI demo, benchmarks.
+
+### ✅ Milestone 3: Binary Quantization + Hamming Retrieval (NEW M3)
+
+Binary approximation of dense embeddings:
+```
+Dense Embeddings → 1-bit Quantization → Binary Index → Hamming Distance Search
+```
+
+Features: Deterministic thresholding, 48x compression, Hamming distance retrieval, comparison benchmarks vs M2.
+
+### ✅ Milestone 2 (Previous): Dense Embedding + FAISS Retrieval (NEW)
 
 Dense baseline for later comparison:
 ```
