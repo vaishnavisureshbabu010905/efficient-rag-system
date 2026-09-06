@@ -105,22 +105,28 @@ class RAGGenerator:
     def _build_prompt(self, query: str, context: str, has_context: bool) -> str:
         """Build RAG prompt with query and context."""
         if not has_context:
-            return f"""You are a helpful assistant. The user asked:
+            return f"""You are a helpful assistant. Answer the following question based ONLY on the provided context.
 
-{query}
+Question: {query}
 
-Unfortunately, no relevant information was found in the knowledge base to answer this question. 
-Please indicate that you cannot answer based on available context."""
+Unfortunately, no relevant context was found in the knowledge base.
+Please respond with: "I do not have enough context to answer this question."
+Do NOT use outside knowledge. Do NOT make up information."""
         
-        return f"""You are a helpful assistant answering questions based on provided context.
+        return f"""You are a helpful assistant. Answer the following question ONLY using the provided context.
 
-Context:
+IMPORTANT RULES:
+1. Answer ONLY from the context provided below.
+2. Do NOT use outside knowledge or make assumptions.
+3. If the context does not contain the answer, explicitly state: "I do not have enough context to answer this."
+4. Be direct, clear, and concise.
+
+Context from knowledge base:
 {context}
 
 Question: {query}
 
-Answer: Based on the context above, provide a clear and concise answer. If the context doesn't 
-contain enough information to answer the question, indicate that."""
+Answer:"""
     
     def stream_generate(self, query: str, top_k: int = 5):
         """

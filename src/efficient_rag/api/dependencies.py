@@ -1,10 +1,16 @@
 """
 Dependencies for M6 API: initialize RAG pipeline.
+Loads environment variables and initializes all M1-M5 components.
 """
 
 import os
 from pathlib import Path
 from functools import lru_cache
+from dotenv import load_dotenv
+
+# Load environment variables from .env if present
+load_dotenv()
+
 from src.efficient_rag.milestone1.document_processor import DocumentProcessor
 from src.efficient_rag.milestone2.embedding import DenseEmbedder
 from src.efficient_rag.milestone2.retriever import DenseRetriever

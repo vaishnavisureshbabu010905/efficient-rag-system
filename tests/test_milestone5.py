@@ -37,8 +37,9 @@ class TestLLMProviderFactory:
     """Test LLM provider factory."""
     
     def test_get_mock_provider_default(self):
-        """Test default mock provider."""
-        provider = get_llm_provider()
+        """Test mock provider when explicitly selected."""
+        # Default is now openai, so explicitly select mock
+        provider = get_llm_provider(provider="mock")
         assert isinstance(provider, MockLLMProvider)
     
     def test_get_mock_provider_explicit(self):

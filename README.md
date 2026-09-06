@@ -64,6 +64,109 @@ pip install -e .
 ```
 
 
+## 🔑 Real LLM Setup (M5/M6 Production)
+
+The system supports both **mock provider** (for testing) and **real LLM providers** (OpenAI, Anthropic) for production.
+
+### Development/Testing (Mock Provider - No API Key Needed)
+
+For offline unit tests, the system automatically uses MockLLMProvider:
+
+```bash
+# Run tests (all use mock provider)
+pytest tests/
+
+# Run real LLM demo with mock provider
+export LLM_PROVIDER=mock
+python examples/m5_real_llm_demo.py
+```
+
+### Production (Real LLM Provider)
+
+#### 1. Set Up Environment
+
+Copy template and add your credentials:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env`:
+
+**For OpenAI:**
+```bash
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-4
+OPENAI_API_KEY=sk-...your-key...
+LLM_TEMPERATURE=0.2
+LLM_MAX_TOKENS=512
+```
+
+Get your key: https://platform.openai.com/api-keys
+
+**For Anthropic:**
+```bash
+LLM_PROVIDER=anthropic
+LLM_MODEL=claude-3-sonnet-20240229
+ANTHROPIC_API_KEY=...your-key...
+LLM_TEMPERATURE=0.2
+LLM_MAX_TOKENS=512
+```
+
+Get your key: https://console.anthropic.com/
+
+#### 2. Run Real LLM Demo
+
+```bash
+python examples/m5_real_llm_demo.py
+```
+
+Output shows:
+- Answer generated from real LLM
+- Retrieved sources
+- Provider and model used
+- Latency metrics
+
+#### 3. Start FastAPI Server
+
+```bash
+uvicorn src.efficient_rag.api.main:app --reload
+```
+
+Visit: http://localhost:8000/docs
+
+Try POST /query with your real LLM:
+```json
+{
+  "query": "What is machine learning?",
+  "top_k": 3
+}
+```
+
+#### 4. Docker (Production)
+
+Build and run with environment variables:
+
+```bash
+docker build -t efficient-rag-api:latest .
+
+docker run -p 8000:8000 \
+  -e LLM_PROVIDER=openai \
+  -e OPENAI_API_KEY=sk-... \
+  -e LLM_MODEL=gpt-4 \
+  -v $(pwd)/data:/app/data \
+  efficient-rag-api:latest
+```
+
+Or use .env file:
+
+```bash
+docker run -p 8000:8000 \
+  --env-file .env \
+  -v $(pwd)/data:/app/data \
+  efficient-rag-api:latest
+```
+
 ### Run API Server (M6)
 
 ```bash
