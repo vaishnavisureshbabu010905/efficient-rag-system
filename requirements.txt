@@ -6,6 +6,16 @@ reportlab==4.0.9
 sentence-transformers==2.2.2
 faiss-cpu==1.8.0
 
+# M5: LLM Providers (optional, only openai/anthropic needed for real LLMs)
+# openai>=0.27.0
+# anthropic>=0.7.0
+
+# M6: FastAPI & Production API
+fastapi==0.104.1
+uvicorn==0.24.0
+pydantic==2.5.0
+
 # Testing
 pytest==7.4.3
 pytest-cov==4.1.0
+httpx==0.25.0

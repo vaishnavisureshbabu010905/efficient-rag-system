@@ -63,6 +63,14 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
+
+### Run API Server (M6)
+
+```bash
+uvicorn src.efficient_rag.api.main:app --reload
+```
+
+Then visit: http://localhost:8000/docs
 ### Run M1: Document Chunking
 
 ```bash
@@ -278,6 +286,6 @@ Built as a comprehensive portfolio project demonstrating:
 
 ---
 
-**Status**: M1 ✅ | M2 ✅ | M3 ✅ | M4 ✅ | M5 ✅ | M6-M8 📋  
-**Tests**: 74/74 passing  
+**Status**: M1 ✅ | M2 ✅ | M3 ✅ | M4 ✅ | M5 ✅ | M6 ✅ | M7-M8 📋  
+**Tests**: 84+ passing (M1-M6)  
 **Python**: 3.8+
