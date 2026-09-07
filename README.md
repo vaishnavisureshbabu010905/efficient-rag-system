@@ -115,6 +115,17 @@ LLM_MAX_TOKENS=512
 
 Get your key: https://console.anthropic.com/
 
+**For Groq (Free):**
+```bash
+LLM_PROVIDER=groq
+LLM_MODEL=openai/gpt-oss-20b
+GROQ_API_KEY=...your-key...
+LLM_TEMPERATURE=0.2
+LLM_MAX_TOKENS=512
+```
+
+Get your key: https://console.groq.com/
+
 #### 2. Run Real LLM Demo
 
 ```bash
