@@ -77,11 +77,15 @@ class HybridRetriever:
             cid = result["chunk_id"]
             scores[cid] += (1.0 / (self.k + rank)) * self.binary_weight
         
-        # Get metadata
-        all_metadata = {}
+        # Get metadata and text from results
+        all_data = {}
         for r in dense_results + binary_results:
-            if r["chunk_id"] not in all_metadata:
-                all_metadata[r["chunk_id"]] = r
+            cid = r["chunk_id"]
+            if cid not in all_data:
+                all_data[cid] = {
+                    "metadata": r.get("metadata"),
+                    "text": r.get("text", "")
+                }
         
         # Sort by fusion score
         ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
@@ -89,7 +93,8 @@ class HybridRetriever:
         return [
             {
                 "chunk_id": cid,
-                "metadata": all_metadata[cid]["metadata"],
+                "text": all_data[cid]["text"],
+                "metadata": all_data[cid]["metadata"],
                 "fusion_score": score,
                 "rank": idx + 1
             }
@@ -107,7 +112,11 @@ class HybridRetriever:
             for rank, result in enumerate(dense_results, 1):
                 cid = result["chunk_id"]
                 if cid not in all_results:
-                    all_results[cid] = {"metadata": result["metadata"], "scores": {}}
+                    all_results[cid] = {
+                        "metadata": result.get("metadata"),
+                        "text": result.get("text", ""),
+                        "scores": {}
+                    }
                 norm_score = result["score"] / max_dense if max_dense > 0 else 0
                 all_results[cid]["scores"]["dense"] = norm_score
         
@@ -119,7 +128,11 @@ class HybridRetriever:
             for rank, result in enumerate(binary_results, 1):
                 cid = result["chunk_id"]
                 if cid not in all_results:
-                    all_results[cid] = {"metadata": result["metadata"], "scores": {}}
+                    all_results[cid] = {
+                        "metadata": result.get("metadata"),
+                        "text": result.get("text", ""),
+                        "scores": {}
+                    }
                 # Invert: low distance = high score
                 norm_score = 1.0 - (result["hamming_distance"] / max_hamming)
                 all_results[cid]["scores"]["binary"] = norm_score
@@ -133,7 +146,7 @@ class HybridRetriever:
             total_weight = self.dense_weight + self.binary_weight
             weighted = (dense_score * self.dense_weight + 
                        binary_score * self.binary_weight) / total_weight
-            fused_scores[cid] = (weighted, data["metadata"])
+            fused_scores[cid] = (weighted, data["metadata"], data["text"])
         
         # Sort by fusion score
         ranked = sorted(fused_scores.items(), key=lambda x: x[1][0], reverse=True)
@@ -141,9 +154,10 @@ class HybridRetriever:
         return [
             {
                 "chunk_id": cid,
+                "text": text,
                 "metadata": metadata,
                 "fusion_score": score,
                 "rank": idx + 1
             }
-            for idx, (cid, (score, metadata)) in enumerate(ranked[:top_k])
+            for idx, (cid, (score, metadata, text)) in enumerate(ranked[:top_k])
         ]

@@ -11,9 +11,9 @@ def mock_dense_retriever():
     """Mock dense retriever."""
     retriever = Mock()
     retriever.search = Mock(return_value=[
-        {"chunk_id": "c0", "metadata": {"f": "f0"}, "score": 0.9},
-        {"chunk_id": "c1", "metadata": {"f": "f1"}, "score": 0.7},
-        {"chunk_id": "c2", "metadata": {"f": "f2"}, "score": 0.6},
+        {"chunk_id": "c0", "text": "Dense result text for c0", "metadata": {"f": "f0"}, "score": 0.9},
+        {"chunk_id": "c1", "text": "Dense result text for c1", "metadata": {"f": "f1"}, "score": 0.7},
+        {"chunk_id": "c2", "text": "Dense result text for c2", "metadata": {"f": "f2"}, "score": 0.6},
     ])
     return retriever
 
@@ -23,9 +23,9 @@ def mock_binary_retriever():
     """Mock binary retriever."""
     retriever = Mock()
     retriever.search = Mock(return_value=[
-        {"chunk_id": "c1", "metadata": {"f": "f1"}, "hamming_distance": 50},
-        {"chunk_id": "c0", "metadata": {"f": "f0"}, "hamming_distance": 100},
-        {"chunk_id": "c3", "metadata": {"f": "f3"}, "hamming_distance": 120},
+        {"chunk_id": "c1", "text": "Binary result text for c1", "metadata": {"f": "f1"}, "hamming_distance": 50},
+        {"chunk_id": "c0", "text": "Binary result text for c0", "metadata": {"f": "f0"}, "hamming_distance": 100},
+        {"chunk_id": "c3", "text": "Binary result text for c3", "metadata": {"f": "f3"}, "hamming_distance": 120},
     ])
     return retriever
 
@@ -108,6 +108,19 @@ class TestHybridRetrieverRRF:
         
         results = hybrid.search("test", top_k=2)
         assert len(results) == 2
+    
+    def test_rrf_preserves_chunk_text(self, hybrid_retriever):
+        """Test that RRF fusion preserves original chunk text."""
+        results = hybrid_retriever.search("test", top_k=3)
+        
+        # All results must have text field
+        assert all("text" in r for r in results)
+        
+        # Text should not be empty for chunks from dense results
+        for result in results:
+            if result["chunk_id"] in ["c0", "c1", "c2"]:
+                assert len(result["text"]) > 0
+                assert "Dense result text" in result["text"] or "Binary result text" in result["text"]
 
 
 class TestHybridRetrieverWeightedAvg:
@@ -154,6 +167,25 @@ class TestHybridRetrieverWeightedAvg:
         
         # Verify it prioritizes dense results
         assert first_id_dense in {"c0", "c1", "c2"}  # Top dense results
+    
+    def test_weighted_avg_preserves_chunk_text(self, mock_dense_retriever, mock_binary_retriever,
+                                               mock_quantizer, mock_embedder):
+        """Test that weighted average fusion preserves original chunk text."""
+        hybrid = HybridRetriever(
+            mock_dense_retriever, mock_binary_retriever, mock_quantizer, mock_embedder,
+            fusion_strategy="weighted_avg"
+        )
+        
+        results = hybrid.search("test", top_k=3)
+        
+        # All results must have text field
+        assert all("text" in r for r in results)
+        
+        # Text should not be empty for chunks from dense results
+        for result in results:
+            if result["chunk_id"] in ["c0", "c1", "c2"]:
+                assert len(result["text"]) > 0
+                assert "Dense result text" in result["text"] or "Binary result text" in result["text"]
 
 
 class TestHybridRetrieverEdgeCases:
