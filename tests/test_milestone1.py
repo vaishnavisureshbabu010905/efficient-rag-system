@@ -2,7 +2,7 @@
 
 import pytest
 from pathlib import Path
-from src.efficient_rag.milestone1 import DocumentProcessor
+from efficient_rag.milestone1 import DocumentProcessor
 
 
 class TestDocumentProcessor:

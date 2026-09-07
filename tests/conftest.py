@@ -37,7 +37,7 @@ def sample_documents_dir(tmp_path):
 @pytest.fixture
 def document_processor():
     """Create DocumentProcessor instance for testing"""
-    from src.efficient_rag.milestone1 import DocumentProcessor
+    from efficient_rag.milestone1 import DocumentProcessor
     return DocumentProcessor(chunk_size=500, chunk_overlap=50)
 
 
@@ -64,7 +64,7 @@ def patch_rag_pipeline(mock_rag_pipeline_for_api):
     """Patch RAG pipeline for API tests."""
     from unittest.mock import patch
     
-    with patch("src.efficient_rag.api.dependencies.RAGPipeline") as mock_class:
+    with patch("efficient_rag.api.dependencies.RAGPipeline") as mock_class:
         mock_class.return_value = mock_rag_pipeline_for_api
-        with patch("src.efficient_rag.api.dependencies.get_rag_pipeline", return_value=mock_rag_pipeline_for_api):
+        with patch("efficient_rag.api.dependencies.get_rag_pipeline", return_value=mock_rag_pipeline_for_api):
             yield mock_rag_pipeline_for_api

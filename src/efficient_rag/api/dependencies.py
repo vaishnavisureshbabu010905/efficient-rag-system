@@ -11,14 +11,14 @@ from dotenv import load_dotenv
 # Load environment variables from .env if present
 load_dotenv()
 
-from src.efficient_rag.milestone1.document_processor import DocumentProcessor
-from src.efficient_rag.milestone2.embedding import DenseEmbedder
-from src.efficient_rag.milestone2.retriever import DenseRetriever
-from src.efficient_rag.milestone3.quantizer import BinaryQuantizer
-from src.efficient_rag.milestone3.binary_retriever import BinaryRetriever
-from src.efficient_rag.milestone4.hybrid_retriever import HybridRetriever
-from src.efficient_rag.milestone5.llm_provider import get_llm_provider
-from src.efficient_rag.milestone5.rag_generator import RAGGenerator
+from efficient_rag.milestone1.document_processor import DocumentProcessor
+from efficient_rag.milestone2.embedding import DenseEmbedder
+from efficient_rag.milestone2.retriever import DenseRetriever
+from efficient_rag.milestone3.quantizer import BinaryQuantizer
+from efficient_rag.milestone3.binary_retriever import BinaryRetriever
+from efficient_rag.milestone4.hybrid_retriever import HybridRetriever
+from efficient_rag.milestone5.llm_provider import get_llm_provider
+from efficient_rag.milestone5.rag_generator import RAGGenerator
 
 
 class RAGPipeline:

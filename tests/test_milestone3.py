@@ -2,8 +2,8 @@
 
 import pytest
 import numpy as np
-from src.efficient_rag.milestone3.quantizer import BinaryQuantizer, hamming_distance
-from src.efficient_rag.milestone3.binary_retriever import BinaryRetriever
+from efficient_rag.milestone3.quantizer import BinaryQuantizer, hamming_distance
+from efficient_rag.milestone3.binary_retriever import BinaryRetriever
 
 
 class TestBinaryQuantizer:

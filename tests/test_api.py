@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 
 def test_health_check(patch_rag_pipeline):
     """Test /health endpoint."""
-    from src.efficient_rag.api.main import app
+    from efficient_rag.api.main import app
     client = TestClient(app)
     response = client.get("/health")
     
@@ -19,7 +19,7 @@ def test_health_check(patch_rag_pipeline):
 
 def test_health_post_not_allowed(patch_rag_pipeline):
     """Test POST to /health returns 405."""
-    from src.efficient_rag.api.main import app
+    from efficient_rag.api.main import app
     client = TestClient(app)
     response = client.post("/health", json={})
     assert response.status_code == 405
@@ -34,7 +34,7 @@ def test_health_post_not_allowed(patch_rag_pipeline):
 ])
 def test_query_top_k_validation(patch_rag_pipeline, top_k, should_fail):
     """Test top_k parameter validation."""
-    from src.efficient_rag.api.main import app
+    from efficient_rag.api.main import app
     
     client = TestClient(app)
     response = client.post("/query", json={"query": "test", "top_k": top_k})
@@ -53,7 +53,7 @@ def test_query_top_k_validation(patch_rag_pipeline, top_k, should_fail):
 ])
 def test_query_validation(patch_rag_pipeline, query, should_fail):
     """Test query parameter validation."""
-    from src.efficient_rag.api.main import app
+    from efficient_rag.api.main import app
     
     client = TestClient(app)
     response = client.post("/query", json={"query": query, "top_k": 5})
@@ -66,7 +66,7 @@ def test_query_validation(patch_rag_pipeline, query, should_fail):
 
 def test_query_response_structure(patch_rag_pipeline):
     """Test query response has correct structure."""
-    from src.efficient_rag.api.main import app
+    from efficient_rag.api.main import app
     
     client = TestClient(app)
     response = client.post("/query", json={"query": "test", "top_k": 3})
@@ -82,7 +82,7 @@ def test_query_response_structure(patch_rag_pipeline):
 
 def test_query_with_results(patch_rag_pipeline):
     """Test query response with results."""
-    from src.efficient_rag.api.main import app
+    from efficient_rag.api.main import app
     
     client = TestClient(app)
     response = client.post("/query", json={"query": "test", "top_k": 2})
@@ -96,7 +96,7 @@ def test_query_with_results(patch_rag_pipeline):
 
 def test_openapi_docs(patch_rag_pipeline):
     """Test OpenAPI documentation endpoints."""
-    from src.efficient_rag.api.main import app
+    from efficient_rag.api.main import app
     
     client = TestClient(app)
     
@@ -118,7 +118,7 @@ def test_openapi_docs(patch_rag_pipeline):
 
 def test_invalid_endpoint(patch_rag_pipeline):
     """Test nonexistent endpoint returns 404."""
-    from src.efficient_rag.api.main import app
+    from efficient_rag.api.main import app
     client = TestClient(app)
     response = client.get("/nonexistent")
     assert response.status_code == 404
@@ -126,7 +126,7 @@ def test_invalid_endpoint(patch_rag_pipeline):
 
 def test_invalid_json(patch_rag_pipeline):
     """Test invalid JSON returns error."""
-    from src.efficient_rag.api.main import app
+    from efficient_rag.api.main import app
     
     client = TestClient(app)
     response = client.post("/query", content="not json")
@@ -135,7 +135,7 @@ def test_invalid_json(patch_rag_pipeline):
 
 def test_missing_required_field(patch_rag_pipeline):
     """Test missing required field returns 422."""
-    from src.efficient_rag.api.main import app
+    from efficient_rag.api.main import app
     
     client = TestClient(app)
     response = client.post("/query", json={"top_k": 5})  # missing query
@@ -144,7 +144,7 @@ def test_missing_required_field(patch_rag_pipeline):
 
 def test_latency_measured(patch_rag_pipeline):
     """Test that latency is measured."""
-    from src.efficient_rag.api.main import app
+    from efficient_rag.api.main import app
     
     client = TestClient(app)
     response = client.post("/query", json={"query": "test", "top_k": 3})
@@ -157,7 +157,7 @@ def test_latency_measured(patch_rag_pipeline):
 
 def test_metadata_in_response(patch_rag_pipeline):
     """Test retrieval metadata in response."""
-    from src.efficient_rag.api.main import app
+    from efficient_rag.api.main import app
     
     client = TestClient(app)
     response = client.post("/query", json={"query": "test", "top_k": 2})

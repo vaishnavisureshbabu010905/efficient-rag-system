@@ -3,7 +3,7 @@
 import pytest
 import os
 from unittest.mock import Mock, patch, MagicMock
-from src.efficient_rag.milestone5.llm_provider import (
+from efficient_rag.milestone5.llm_provider import (
     OpenAILLMProvider, AnthropicLLMProvider, GroqLLMProvider, MockLLMProvider, get_llm_provider
 )
 

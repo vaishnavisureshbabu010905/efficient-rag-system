@@ -3,7 +3,7 @@
 import pytest
 import numpy as np
 from unittest.mock import Mock
-from src.efficient_rag.milestone4.hybrid_retriever import HybridRetriever
+from efficient_rag.milestone4.hybrid_retriever import HybridRetriever
 
 
 @pytest.fixture

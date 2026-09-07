@@ -2,10 +2,10 @@
 
 import pytest
 from unittest.mock import Mock
-from src.efficient_rag.milestone5.llm_provider import (
+from efficient_rag.milestone5.llm_provider import (
     MockLLMProvider, get_llm_provider, LLMProvider
 )
-from src.efficient_rag.milestone5.rag_generator import RAGGenerator, QueryProcessor
+from efficient_rag.milestone5.rag_generator import RAGGenerator, QueryProcessor
 
 
 class TestMockLLMProvider:

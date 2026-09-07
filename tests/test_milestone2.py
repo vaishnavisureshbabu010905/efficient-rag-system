@@ -4,8 +4,8 @@ import pytest
 import numpy as np
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
-from src.efficient_rag.milestone2.embedding import DenseEmbedder
-from src.efficient_rag.milestone2.retriever import DenseRetriever
+from efficient_rag.milestone2.embedding import DenseEmbedder
+from efficient_rag.milestone2.retriever import DenseRetriever
 
 
 @pytest.fixture
@@ -31,7 +31,7 @@ def mock_embedder():
 class TestDenseEmbedder:
     """Test embedding component."""
     
-    @patch('src.efficient_rag.milestone2.embedding.SentenceTransformer')
+    @patch('efficient_rag.milestone2.embedding.SentenceTransformer')
     def test_init(self, mock_st):
         """Test embedder initialization."""
         mock_model = Mock()
