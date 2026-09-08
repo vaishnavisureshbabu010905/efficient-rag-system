@@ -74,7 +74,7 @@ class RateLimiter:
         
         oldest = self.requests[api_key][0]
         retry_after = int(self.window_seconds - (time.time() - oldest)) + 1
-        return max(1, retry_after)
+        return max(1, min(self.window_seconds, retry_after))
 
 
 # Global rate limiter instance
