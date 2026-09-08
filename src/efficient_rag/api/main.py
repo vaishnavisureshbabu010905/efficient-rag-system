@@ -4,6 +4,7 @@ M6 FastAPI application: Production API for RAG pipeline.
 
 import os
 import time
+from collections import defaultdict
 from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
@@ -14,6 +15,10 @@ from .dependencies import RAGPipeline, get_rag_pipeline
 API_TITLE = "Efficient RAG System API"
 API_VERSION = "1.0.0"
 API_DESCRIPTION = "Production API for Retrieval-Augmented Generation with M1-M5 pipeline"
+
+# Rate limiting configuration
+RATE_LIMIT_REQUESTS = int(os.environ.get("RATE_LIMIT_REQUESTS", "10"))
+RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("RATE_LIMIT_WINDOW_SECONDS", "60"))
 
 # Create FastAPI app
 app = FastAPI(
@@ -34,6 +39,46 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class RateLimiter:
+    """Simple in-memory rate limiter per API key."""
+    
+    def __init__(self, max_requests: int, window_seconds: int):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        # Track requests: {api_key: [(timestamp, ...)]}
+        self.requests = defaultdict(list)
+    
+    def is_allowed(self, api_key: str) -> bool:
+        """Check if request is allowed for this API key."""
+        now = time.time()
+        
+        # Remove old requests outside the window
+        self.requests[api_key] = [
+            req_time for req_time in self.requests[api_key]
+            if now - req_time < self.window_seconds
+        ]
+        
+        # Check if we can allow this request
+        if len(self.requests[api_key]) < self.max_requests:
+            self.requests[api_key].append(now)
+            return True
+        
+        return False
+    
+    def get_retry_after(self, api_key: str) -> int:
+        """Get retry-after seconds for this API key."""
+        if not self.requests[api_key]:
+            return self.window_seconds
+        
+        oldest = self.requests[api_key][0]
+        retry_after = int(self.window_seconds - (time.time() - oldest)) + 1
+        return max(1, retry_after)
+
+
+# Global rate limiter instance
+rate_limiter = RateLimiter(RATE_LIMIT_REQUESTS, RATE_LIMIT_WINDOW_SECONDS)
 
 
 async def verify_api_key(x_api_key: Optional[str] = Header(None)) -> str:
@@ -64,9 +109,33 @@ async def verify_api_key(x_api_key: Optional[str] = Header(None)) -> str:
     return x_api_key
 
 
+async def check_rate_limit(api_key: str = Depends(verify_api_key)) -> str:
+    """
+    Check rate limit for API key on POST /query.
+    
+    Args:
+        api_key: Verified API key
+        
+    Returns:
+        API key if allowed
+        
+    Raises:
+        HTTPException 429: If rate limit exceeded
+    """
+    if not rate_limiter.is_allowed(api_key):
+        retry_after = rate_limiter.get_retry_after(api_key)
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded: {RATE_LIMIT_REQUESTS} requests per {RATE_LIMIT_WINDOW_SECONDS} seconds",
+            headers={"Retry-After": str(retry_after)}
+        )
+    
+    return api_key
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Health check endpoint (public, no authentication required)."""
+    """Health check endpoint (public, no authentication or rate limiting)."""
     return HealthResponse(status="healthy", version=API_VERSION)
 
 
@@ -74,15 +143,16 @@ async def health_check():
 async def query_endpoint(
     request: QueryRequest,
     pipeline: RAGPipeline = Depends(get_rag_pipeline),
-    api_key: str = Depends(verify_api_key)
+    api_key: str = Depends(check_rate_limit)
 ) -> QueryResponse:
     """
     Query the RAG system (requires X-API-Key header if RAG_API_KEY is configured).
+    Subject to rate limiting: RATE_LIMIT_REQUESTS per RATE_LIMIT_WINDOW_SECONDS.
     
     Args:
         request: Query request with query text and top_k
         pipeline: RAG pipeline (injected dependency)
-        api_key: Validated API key from header
+        api_key: Validated API key from header (rate limit checked)
     
     Returns:
         QueryResponse with answer, sources, and metadata

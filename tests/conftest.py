@@ -59,6 +59,17 @@ def mock_rag_pipeline_for_api():
     return mock_pipeline
 
 
+
+
+@pytest.fixture
+def reset_rate_limiter():
+    """Reset rate limiter before each test."""
+    from efficient_rag.api.main import rate_limiter
+    rate_limiter.requests.clear()
+    yield
+    rate_limiter.requests.clear()
+
+
 @pytest.fixture
 def patch_rag_pipeline(mock_rag_pipeline_for_api):
     """Patch RAG pipeline for API tests."""

@@ -211,6 +211,42 @@ curl -X POST http://localhost:8000/query \
 
 **Note**: If RAG_API_KEY is not set, POST /query is public.
 
+### M7.3: Rate Limiting (Optional)
+
+Limit requests per API key with configurable rate limiting:
+
+**1. Configure rate limits in .env:**
+```bash
+RATE_LIMIT_REQUESTS=10
+RATE_LIMIT_WINDOW_SECONDS=60
+```
+
+**2. Behavior:**
+- Allows up to 10 requests per 60 seconds per API key
+- Requests exceeding the limit return HTTP 429 (Too Many Requests)
+- 429 response includes `Retry-After` header
+- Each API key has independent request limits
+- /health, /docs, /redoc, /openapi.json are not rate limited
+
+**3. Example (exceeding limit):**
+```bash
+# Make 10 requests quickly
+for i in {1..10}; do
+  curl -X POST http://localhost:8000/query \
+    -H "X-API-Key: your-secret-key" \
+    -H "Content-Type: application/json" \
+    -d '{"query": "test", "top_k": 3}'
+done
+
+# 11th request returns 429
+curl -X POST http://localhost:8000/query \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "test", "top_k": 3}'
+# Response: HTTP 429 Too Many Requests
+# Retry-After: 45 (seconds)
+```
+
 ### Run M1: Document Chunking
 
 ```bash

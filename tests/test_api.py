@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from unittest.mock import Mock, patch
 
 
-def test_health_check(patch_rag_pipeline):
+def test_health_check(patch_rag_pipeline, reset_rate_limiter):
     """Test /health endpoint."""
     from efficient_rag.api.main import app
     client = TestClient(app)
@@ -17,7 +17,7 @@ def test_health_check(patch_rag_pipeline):
     assert "version" in data
 
 
-def test_health_post_not_allowed(patch_rag_pipeline):
+def test_health_post_not_allowed(patch_rag_pipeline, reset_rate_limiter):
     """Test POST to /health returns 405."""
     from efficient_rag.api.main import app
     client = TestClient(app)
@@ -64,7 +64,7 @@ def test_query_validation(patch_rag_pipeline, query, should_fail):
         assert response.status_code == 200
 
 
-def test_query_response_structure(patch_rag_pipeline):
+def test_query_response_structure(patch_rag_pipeline, reset_rate_limiter):
     """Test query response has correct structure."""
     from efficient_rag.api.main import app
     
@@ -80,7 +80,7 @@ def test_query_response_structure(patch_rag_pipeline):
     assert "latency_ms" in data
 
 
-def test_query_with_results(patch_rag_pipeline):
+def test_query_with_results(patch_rag_pipeline, reset_rate_limiter):
     """Test query response with results."""
     from efficient_rag.api.main import app
     
@@ -94,7 +94,7 @@ def test_query_with_results(patch_rag_pipeline):
     assert len(data["sources"]) >= 0
 
 
-def test_openapi_docs(patch_rag_pipeline):
+def test_openapi_docs(patch_rag_pipeline, reset_rate_limiter):
     """Test OpenAPI documentation endpoints."""
     from efficient_rag.api.main import app
     
@@ -116,7 +116,7 @@ def test_openapi_docs(patch_rag_pipeline):
     assert "openapi" in schema or "paths" in schema
 
 
-def test_invalid_endpoint(patch_rag_pipeline):
+def test_invalid_endpoint(patch_rag_pipeline, reset_rate_limiter):
     """Test nonexistent endpoint returns 404."""
     from efficient_rag.api.main import app
     client = TestClient(app)
@@ -124,7 +124,7 @@ def test_invalid_endpoint(patch_rag_pipeline):
     assert response.status_code == 404
 
 
-def test_invalid_json(patch_rag_pipeline):
+def test_invalid_json(patch_rag_pipeline, reset_rate_limiter):
     """Test invalid JSON returns error."""
     from efficient_rag.api.main import app
     
@@ -133,7 +133,7 @@ def test_invalid_json(patch_rag_pipeline):
     assert response.status_code == 422
 
 
-def test_missing_required_field(patch_rag_pipeline):
+def test_missing_required_field(patch_rag_pipeline, reset_rate_limiter):
     """Test missing required field returns 422."""
     from efficient_rag.api.main import app
     
@@ -142,7 +142,7 @@ def test_missing_required_field(patch_rag_pipeline):
     assert response.status_code == 422
 
 
-def test_latency_measured(patch_rag_pipeline):
+def test_latency_measured(patch_rag_pipeline, reset_rate_limiter):
     """Test that latency is measured."""
     from efficient_rag.api.main import app
     
@@ -155,7 +155,7 @@ def test_latency_measured(patch_rag_pipeline):
     assert data["latency_ms"] >= 0
 
 
-def test_metadata_in_response(patch_rag_pipeline):
+def test_metadata_in_response(patch_rag_pipeline, reset_rate_limiter):
     """Test retrieval metadata in response."""
     from efficient_rag.api.main import app
     
@@ -189,7 +189,7 @@ def test_api_uses_correct_imports():
     assert "from src.efficient_rag" not in content, "dependencies.py should not import from src.efficient_rag"
 
 
-def test_query_without_api_key_when_not_required(patch_rag_pipeline):
+def test_query_without_api_key_when_not_required(patch_rag_pipeline, reset_rate_limiter):
     """Test /query works without API key when RAG_API_KEY not configured."""
     import os
     from unittest.mock import patch
@@ -204,7 +204,7 @@ def test_query_without_api_key_when_not_required(patch_rag_pipeline):
         assert response.status_code == 200
 
 
-def test_query_missing_api_key_when_required(patch_rag_pipeline):
+def test_query_missing_api_key_when_required(patch_rag_pipeline, reset_rate_limiter):
     """Test /query returns 401 when API key required but missing."""
     import os
     from unittest.mock import patch
@@ -220,7 +220,7 @@ def test_query_missing_api_key_when_required(patch_rag_pipeline):
         assert "Missing X-API-Key header" in response.json()["detail"]
 
 
-def test_query_invalid_api_key(patch_rag_pipeline):
+def test_query_invalid_api_key(patch_rag_pipeline, reset_rate_limiter):
     """Test /query returns 401 when API key is invalid."""
     import os
     from unittest.mock import patch
@@ -240,7 +240,7 @@ def test_query_invalid_api_key(patch_rag_pipeline):
         assert "Invalid API key" in response.json()["detail"]
 
 
-def test_query_valid_api_key(patch_rag_pipeline):
+def test_query_valid_api_key(patch_rag_pipeline, reset_rate_limiter):
     """Test /query succeeds with correct API key."""
     import os
     from unittest.mock import patch
@@ -290,3 +290,65 @@ def test_docs_always_public():
         response = client.get("/docs")
         assert response.status_code == 200
         assert "swagger" in response.text.lower()
+
+
+def test_rate_limiter_tracks_requests():
+    """Test RateLimiter correctly tracks requests per API key."""
+    from efficient_rag.api.main import RateLimiter
+    
+    limiter = RateLimiter(max_requests=2, window_seconds=60)
+    
+    # First two requests should be allowed
+    assert limiter.is_allowed("api_key_1") is True
+    assert limiter.is_allowed("api_key_1") is True
+    
+    # Third request should be denied
+    assert limiter.is_allowed("api_key_1") is False
+    
+    # Different key should have independent limit
+    assert limiter.is_allowed("api_key_2") is True
+
+
+def test_rate_limiter_independent_keys():
+    """Test different API keys have independent rate limits."""
+    from efficient_rag.api.main import RateLimiter
+    
+    limiter = RateLimiter(max_requests=1, window_seconds=60)
+    
+    # key1: 1 request allowed, 2nd denied
+    assert limiter.is_allowed("key1") is True
+    assert limiter.is_allowed("key1") is False
+    
+    # key2: should have its own limit
+    assert limiter.is_allowed("key2") is True
+    assert limiter.is_allowed("key2") is False
+
+
+def test_rate_limiter_retry_after():
+    """Test RateLimiter provides correct Retry-After value."""
+    from efficient_rag.api.main import RateLimiter
+    import time
+    
+    limiter = RateLimiter(max_requests=1, window_seconds=10)
+    
+    # Use up the limit
+    assert limiter.is_allowed("key1") is True
+    
+    # Get retry-after value
+    retry_after = limiter.get_retry_after("key1")
+    
+    # Should be between 1 and 10 seconds
+    assert 1 <= retry_after <= 10
+
+
+def test_health_endpoint_not_rate_limited():
+    """Test /health endpoint is never rate limited."""
+    from efficient_rag.api.main import app
+    
+    client = TestClient(app)
+    
+    # Make multiple requests to /health
+    # They should all succeed regardless of rate limiting
+    for _ in range(10):
+        response = client.get("/health")
+        assert response.status_code == 200
