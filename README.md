@@ -185,6 +185,32 @@ uvicorn src.efficient_rag.api.main:app --reload
 ```
 
 Then visit: http://localhost:8000/docs
+
+### M7: API Authentication (Optional)
+
+Protect POST /query with an API key:
+
+**1. Set API key in .env:**
+```bash
+RAG_API_KEY=your-secret-key-here
+```
+
+**2. Pass API key in requests:**
+```bash
+curl -X POST http://localhost:8000/query \
+  -H "X-API-Key: your-secret-key-here" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is machine learning?", "top_k": 3}'
+```
+
+**3. Public endpoints (no authentication required):**
+- GET /health
+- GET /docs
+- GET /redoc
+- GET /openapi.json
+
+**Note**: If RAG_API_KEY is not set, POST /query is public.
+
 ### Run M1: Document Chunking
 
 ```bash

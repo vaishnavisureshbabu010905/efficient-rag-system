@@ -4,8 +4,9 @@ M6 FastAPI application: Production API for RAG pipeline.
 
 import os
 import time
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
+from typing import Optional
 from .schemas import QueryRequest, QueryResponse, HealthResponse, ErrorResponse
 from .dependencies import RAGPipeline, get_rag_pipeline
 
@@ -35,23 +36,53 @@ app.add_middleware(
 )
 
 
+async def verify_api_key(x_api_key: Optional[str] = Header(None)) -> str:
+    """
+    Verify X-API-Key header for protected endpoints.
+    
+    Args:
+        x_api_key: API key from X-API-Key header
+        
+    Returns:
+        Verified API key
+        
+    Raises:
+        HTTPException 401: If key missing or invalid
+    """
+    expected_key = os.environ.get("RAG_API_KEY")
+    
+    if not expected_key:
+        # If RAG_API_KEY not configured, allow public access
+        return "public"
+    
+    if not x_api_key:
+        raise HTTPException(status_code=401, detail="Missing X-API-Key header")
+    
+    if x_api_key != expected_key:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    
+    return x_api_key
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Health check endpoint."""
+    """Health check endpoint (public, no authentication required)."""
     return HealthResponse(status="healthy", version=API_VERSION)
 
 
 @app.post("/query", response_model=QueryResponse)
 async def query_endpoint(
     request: QueryRequest,
-    pipeline: RAGPipeline = Depends(get_rag_pipeline)
+    pipeline: RAGPipeline = Depends(get_rag_pipeline),
+    api_key: str = Depends(verify_api_key)
 ) -> QueryResponse:
     """
-    Query the RAG system.
+    Query the RAG system (requires X-API-Key header if RAG_API_KEY is configured).
     
     Args:
         request: Query request with query text and top_k
         pipeline: RAG pipeline (injected dependency)
+        api_key: Validated API key from header
     
     Returns:
         QueryResponse with answer, sources, and metadata
