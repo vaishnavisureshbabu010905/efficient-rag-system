@@ -247,6 +247,49 @@ curl -X POST http://localhost:8000/query \
 # Retry-After: 45 (seconds)
 ```
 
+### M7.4: Response Caching (Optional)
+
+Cache successful POST /query responses to reduce RAG/LLM generation overhead:
+
+**1. Configure caching in .env:**
+```bash
+CACHE_ENABLED=true
+CACHE_TTL_SECONDS=300
+CACHE_MAX_SIZE=1000
+```
+
+**2. Behavior:**
+- Caches successful responses per (API key, normalized query, top_k)
+- Returns cached response on identical request within TTL
+- Avoids RAG retrieval and LLM generation for cache hits
+- Expired entries are removed and treated as cache misses
+- Failed requests (4xx/5xx) are never cached
+- Different API keys do not share cached responses
+- /health, /docs, /redoc, /openapi.json are not cached
+- Set CACHE_ENABLED=false to disable caching
+
+**3. Example (cache hit):**
+```bash
+# First request (cache miss, ~1-2 seconds latency)
+curl -X POST http://localhost:8000/query \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is machine learning?", "top_k": 3}'
+
+# Second identical request (cache hit, <10ms latency)
+curl -X POST http://localhost:8000/query \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is machine learning?", "top_k": 3}'
+# Returns same answer, much faster
+```
+
+**4. Cache key composition:**
+- API key (hashed, not stored)
+- Normalized query (lowercased, stripped)
+- top_k parameter
+- Different queries or top_k values use different cache entries
+
 ### Run M1: Document Chunking
 
 ```bash

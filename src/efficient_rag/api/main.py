@@ -20,6 +20,11 @@ API_DESCRIPTION = "Production API for Retrieval-Augmented Generation with M1-M5 
 RATE_LIMIT_REQUESTS = int(os.environ.get("RATE_LIMIT_REQUESTS", "10"))
 RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("RATE_LIMIT_WINDOW_SECONDS", "60"))
 
+# Cache configuration
+CACHE_ENABLED = os.environ.get("CACHE_ENABLED", "true").lower() == "true"
+CACHE_TTL_SECONDS = int(os.environ.get("CACHE_TTL_SECONDS", "300"))
+CACHE_MAX_SIZE = int(os.environ.get("CACHE_MAX_SIZE", "1000"))
+
 # Create FastAPI app
 app = FastAPI(
     title=API_TITLE,
@@ -39,6 +44,64 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class QueryCache:
+    """Simple in-memory TTL cache for query responses."""
+    
+    def __init__(self, ttl_seconds: int, max_size: int):
+        self.ttl_seconds = ttl_seconds
+        self.max_size = max_size
+        # Cache: {cache_key: (response_dict, timestamp)}
+        self.cache = {}
+    
+    def _make_key(self, api_key: str, query: str, top_k: int) -> str:
+        """Create cache key from API key, normalized query, and top_k."""
+        # Normalize query: lowercase, strip whitespace, collapse multiple spaces
+        normalized_query = " ".join(query.lower().split())
+        # Don't include the actual API key in the cache key (only its hash)
+        key_hash = hash(api_key) % (2**32)
+        return f"{key_hash}:{normalized_query}:{top_k}"
+    
+    def get(self, api_key: str, query: str, top_k: int) -> Optional[dict]:
+        """Get cached response if it exists and hasn't expired."""
+        key = self._make_key(api_key, query, top_k)
+        
+        if key not in self.cache:
+            return None
+        
+        response_dict, timestamp = self.cache[key]
+        age = time.time() - timestamp
+        
+        # Check if expired
+        if age > self.ttl_seconds:
+            del self.cache[key]
+            return None
+        
+        return response_dict
+    
+    def set(self, api_key: str, query: str, top_k: int, response_dict: dict) -> None:
+        """Store response in cache with TTL."""
+        # Enforce max size: remove oldest entry if at capacity
+        if len(self.cache) >= self.max_size:
+            # Remove oldest entry (simple FIFO)
+            oldest_key = min(self.cache.keys(), key=lambda k: self.cache[k][1])
+            del self.cache[oldest_key]
+        
+        key = self._make_key(api_key, query, top_k)
+        self.cache[key] = (response_dict, time.time())
+    
+    def clear(self) -> None:
+        """Clear all cached entries."""
+        self.cache.clear()
+    
+    def size(self) -> int:
+        """Get current cache size."""
+        return len(self.cache)
+
+
+# Global cache instance
+query_cache = QueryCache(CACHE_TTL_SECONDS, CACHE_MAX_SIZE)
 
 
 class RateLimiter:
@@ -79,6 +142,63 @@ class RateLimiter:
 
 # Global rate limiter instance
 rate_limiter = RateLimiter(RATE_LIMIT_REQUESTS, RATE_LIMIT_WINDOW_SECONDS)
+
+
+class ResponseCache:
+    """Simple in-memory TTL cache for /query responses, bounded by max size."""
+    
+    def __init__(self, max_size: int, ttl_seconds: int):
+        self.max_size = max_size
+        self.ttl_seconds = ttl_seconds
+        # Cache: {cache_key: (response_dict, timestamp)}
+        self.cache = {}
+    
+    def _make_key(self, api_key: str, query: str, top_k: int) -> str:
+        """Create a cache key from API key, normalized query, and top_k."""
+        # Normalize query: lowercase, strip whitespace
+        normalized_query = query.strip().lower()
+        return f"{api_key}:{normalized_query}:{top_k}"
+    
+    def get(self, api_key: str, query: str, top_k: int) -> Optional[dict]:
+        """Get cached response if available and not expired."""
+        key = self._make_key(api_key, query, top_k)
+        
+        if key not in self.cache:
+            return None
+        
+        response, timestamp = self.cache[key]
+        
+        # Check if expired
+        if time.time() - timestamp > self.ttl_seconds:
+            # Remove expired entry
+            del self.cache[key]
+            return None
+        
+        return response
+    
+    def set(self, api_key: str, query: str, top_k: int, response: dict) -> None:
+        """Cache a response with TTL."""
+        key = self._make_key(api_key, query, top_k)
+        
+        # If cache is full, remove oldest entry (simple eviction)
+        if len(self.cache) >= self.max_size and key not in self.cache:
+            # Remove oldest timestamp
+            oldest_key = min(self.cache.keys(), key=lambda k: self.cache[k][1])
+            del self.cache[oldest_key]
+        
+        self.cache[key] = (response, time.time())
+    
+    def clear(self) -> None:
+        """Clear all cached entries."""
+        self.cache.clear()
+    
+    def size(self) -> int:
+        """Return current number of cached entries."""
+        return len(self.cache)
+
+
+# Global cache instance
+response_cache = ResponseCache(CACHE_MAX_SIZE, CACHE_TTL_SECONDS)
 
 
 async def verify_api_key(x_api_key: Optional[str] = Header(None)) -> str:
@@ -148,6 +268,7 @@ async def query_endpoint(
     """
     Query the RAG system (requires X-API-Key header if RAG_API_KEY is configured).
     Subject to rate limiting: RATE_LIMIT_REQUESTS per RATE_LIMIT_WINDOW_SECONDS.
+    Responses are cached per (API key, query, top_k) with TTL.
     
     Args:
         request: Query request with query text and top_k
@@ -155,10 +276,17 @@ async def query_endpoint(
         api_key: Validated API key from header (rate limit checked)
     
     Returns:
-        QueryResponse with answer, sources, and metadata
+        QueryResponse with answer, sources, and metadata (cached or fresh)
     """
     try:
-        # Time the query
+        # Check cache if enabled
+        if CACHE_ENABLED:
+            cached_response = query_cache.get(api_key, request.query, request.top_k)
+            if cached_response is not None:
+                # Return cached response
+                return QueryResponse(**cached_response)
+        
+        # Cache miss or caching disabled: execute pipeline
         start_time = time.time()
         
         # Execute query
@@ -177,15 +305,21 @@ async def query_endpoint(
             for r in result.get("retrieval_results", [])
         ]
         
-        return QueryResponse(
-            query=result["query"],
-            answer=result["answer"],
-            sources=result["sources"],
-            has_sufficient_context=result["has_sufficient_context"],
-            num_chunks_retrieved=result["num_chunks_retrieved"],
-            retrieval_metadata=metadata,
-            latency_ms=latency_ms
-        )
+        response_dict = {
+            "query": result["query"],
+            "answer": result["answer"],
+            "sources": result["sources"],
+            "has_sufficient_context": result["has_sufficient_context"],
+            "num_chunks_retrieved": result["num_chunks_retrieved"],
+            "retrieval_metadata": metadata,
+            "latency_ms": latency_ms
+        }
+        
+        # Cache successful response if enabled
+        if CACHE_ENABLED:
+            query_cache.set(api_key, request.query, request.top_k, response_dict)
+        
+        return QueryResponse(**response_dict)
     
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

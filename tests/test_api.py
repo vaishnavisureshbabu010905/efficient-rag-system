@@ -352,3 +352,113 @@ def test_health_endpoint_not_rate_limited():
     for _ in range(10):
         response = client.get("/health")
         assert response.status_code == 200
+
+
+def test_query_cache_structure():
+    """Test ResponseCache basic structure and operations."""
+    from efficient_rag.api.main import QueryCache
+    
+    cache = QueryCache(max_size=2, ttl_seconds=10)
+    
+    # Initially empty
+    assert cache.size() == 0
+    
+    # Set and get
+    response = {"answer": "test", "sources": []}
+    cache.set("key1", "query", 5, response)
+    
+    assert cache.size() == 1
+    cached = cache.get("key1", "query", 5)
+    assert cached == response
+
+
+def test_query_cache_miss():
+    """Test ResponseCache returns None on miss."""
+    from efficient_rag.api.main import QueryCache
+    
+    cache = QueryCache(max_size=10, ttl_seconds=10)
+    
+    result = cache.get("key1", "query", 5)
+    assert result is None
+
+
+def test_query_cache_ttl_expiry():
+    """Test ResponseCache entries expire after TTL."""
+    from efficient_rag.api.main import QueryCache
+    import time
+    
+    cache = QueryCache(max_size=10, ttl_seconds=1)
+    
+    response = {"answer": "test", "sources": []}
+    cache.set("key1", "query", 5, response)
+    
+    # Immediately, should be cached
+    assert cache.get("key1", "query", 5) is not None
+    
+    # Wait for expiry
+    time.sleep(1.1)
+    
+    # Should now be expired
+    assert cache.get("key1", "query", 5) is None
+
+
+def test_query_cache_different_keys():
+    """Test different cache keys are independent."""
+    from efficient_rag.api.main import QueryCache
+    
+    cache = QueryCache(max_size=10, ttl_seconds=10)
+    
+    response1 = {"answer": "test1", "sources": []}
+    response2 = {"answer": "test2", "sources": []}
+    
+    cache.set("key1", "query", 5, response1)
+    cache.set("key2", "query", 5, response2)
+    
+    # Different API key
+    assert cache.get("key1", "query", 5) == response1
+    assert cache.get("key2", "query", 5) == response2
+    
+    # Different top_k
+    assert cache.get("key1", "query", 10) is None
+    
+    # Different query
+    assert cache.get("key1", "other", 5) is None
+
+
+def test_query_cache_query_normalization():
+    """Test cache key normalizes queries (lowercase, whitespace)."""
+    from efficient_rag.api.main import QueryCache
+    
+    cache = QueryCache(max_size=10, ttl_seconds=10)
+    
+    response = {"answer": "test", "sources": []}
+    
+    # Set with one variant
+    cache.set("key1", "Hello World", 5, response)
+    
+    # Get with different case/whitespace should hit
+    assert cache.get("key1", "hello world", 5) == response
+    assert cache.get("key1", "HELLO  WORLD", 5) == response
+    assert cache.get("key1", "  hello world  ", 5) == response
+
+
+def test_query_cache_max_size_eviction():
+    """Test cache evicts oldest on max size."""
+    from efficient_rag.api.main import QueryCache
+    
+    cache = QueryCache(max_size=2, ttl_seconds=10)
+    
+    # Fill cache
+    cache.set("key1", "q1", 5, {"answer": "1"})
+    cache.set("key1", "q2", 5, {"answer": "2"})
+    
+    assert cache.size() == 2
+    
+    # Add third, should evict oldest
+    cache.set("key1", "q3", 5, {"answer": "3"})
+    
+    assert cache.size() == 2
+    # q1 should be evicted
+    assert cache.get("key1", "q1", 5) is None
+
+

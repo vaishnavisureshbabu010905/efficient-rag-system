@@ -71,6 +71,15 @@ def reset_rate_limiter():
 
 
 @pytest.fixture
+def reset_query_cache():
+    """Reset query cache before each test."""
+    from efficient_rag.api.main import query_cache
+    query_cache.clear()
+    yield
+    query_cache.clear()
+
+
+@pytest.fixture
 def patch_rag_pipeline(mock_rag_pipeline_for_api):
     """Patch RAG pipeline for API tests."""
     from unittest.mock import patch
