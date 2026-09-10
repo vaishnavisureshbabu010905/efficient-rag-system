@@ -462,3 +462,88 @@ def test_query_cache_max_size_eviction():
     assert cache.get("key1", "q1", 5) is None
 
 
+
+
+def test_stream_endpoint_authenticated(patch_rag_pipeline, reset_rate_limiter, reset_query_cache):
+    """Test streaming endpoint with valid API key."""
+    import os
+    from unittest.mock import patch
+    from efficient_rag.api.main import app
+    
+    client = TestClient(app)
+    
+    with patch.dict(os.environ, {"RAG_API_KEY": "test-key"}, clear=False):
+        response = client.post(
+            "/query/stream",
+            json={"query": "test", "top_k": 5},
+            headers={"X-API-Key": "test-key"}
+        )
+        assert response.status_code == 200
+        assert "text/event-stream" in response.headers.get("content-type", "")
+
+
+def test_stream_endpoint_missing_api_key(patch_rag_pipeline):
+    """Test streaming endpoint returns 401 without API key."""
+    import os
+    from unittest.mock import patch
+    from efficient_rag.api.main import app
+    
+    client = TestClient(app)
+    
+    with patch.dict(os.environ, {"RAG_API_KEY": "test-key"}, clear=False):
+        response = client.post(
+            "/query/stream",
+            json={"query": "test", "top_k": 5}
+        )
+        assert response.status_code == 401
+
+
+def test_stream_endpoint_invalid_api_key(patch_rag_pipeline):
+    """Test streaming endpoint returns 401 with invalid API key."""
+    import os
+    from unittest.mock import patch
+    from efficient_rag.api.main import app
+    
+    client = TestClient(app)
+    
+    with patch.dict(os.environ, {"RAG_API_KEY": "correct-key"}, clear=False):
+        response = client.post(
+            "/query/stream",
+            json={"query": "test", "top_k": 5},
+            headers={"X-API-Key": "wrong-key"}
+        )
+        assert response.status_code == 401
+
+
+def test_stream_endpoint_returns_event_stream(patch_rag_pipeline, reset_rate_limiter, reset_query_cache):
+    """Test streaming endpoint returns Server-Sent Events format."""
+    import os
+    from unittest.mock import patch
+    from efficient_rag.api.main import app
+    
+    client = TestClient(app)
+    
+    with patch.dict(os.environ, {"RAG_API_KEY": "test-key"}, clear=False):
+        response = client.post(
+            "/query/stream",
+            json={"query": "test", "top_k": 5},
+            headers={"X-API-Key": "test-key"}
+        )
+        
+        assert response.status_code == 200
+        content = response.text
+        # Should contain data: events
+        assert "data:" in content
+
+
+def test_existing_query_endpoint_unchanged(patch_rag_pipeline, reset_rate_limiter, reset_query_cache):
+    """Test non-streaming /query endpoint still works."""
+    from efficient_rag.api.main import app
+    
+    client = TestClient(app)
+    
+    response = client.post("/query", json={"query": "test", "top_k": 5})
+    assert response.status_code == 200
+    data = response.json()
+    assert "answer" in data
+    assert "sources" in data

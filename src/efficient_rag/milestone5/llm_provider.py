@@ -16,6 +16,11 @@ class LLMProvider(ABC):
     def generate(self, prompt: str, max_tokens: int = 512) -> str:
         """Generate text from a prompt."""
         pass
+    
+    @abstractmethod
+    def stream(self, prompt: str, max_tokens: int = 512):
+        """Stream text from a prompt (yields chunks)."""
+        pass
 
 
 class MockLLMProvider(LLMProvider):
@@ -29,6 +34,17 @@ class MockLLMProvider(LLMProvider):
         if "Answer:" in prompt:
             return "[Generated answer based on context - this is a mock response]"
         return "[Mock response]"
+    
+    def stream(self, prompt: str, max_tokens: int = 512):
+        """Stream mock response (yields chunks)."""
+        if "Answer:" in prompt:
+            text = "[Generated answer based on context - this is a mock response]"
+        else:
+            text = "[Mock response]"
+        
+        # Yield response character by character
+        for chunk in text.split():
+            yield chunk + " "
 
 
 class OpenAILLMProvider(LLMProvider):
@@ -75,6 +91,27 @@ class OpenAILLMProvider(LLMProvider):
         except self.APIError as e:
             # Don't expose API key in error
             raise RuntimeError(f"OpenAI API error: {str(e)}")
+    
+    def stream(self, prompt: str, max_tokens: Optional[int] = None):
+        """Stream text using OpenAI API (yields chunks)."""
+        max_tokens = max_tokens or self.max_tokens
+        try:
+            stream = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+                temperature=self.temperature,
+                stream=True
+            )
+            for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+        except self.RateLimitError:
+            raise RuntimeError("OpenAI rate limit exceeded. Please retry later.")
+        except self.APIConnectionError as e:
+            raise RuntimeError(f"OpenAI connection error: {str(e)}")
+        except self.APIError as e:
+            raise RuntimeError(f"OpenAI API error: {str(e)}")
 
 
 class AnthropicLLMProvider(LLMProvider):
@@ -114,6 +151,25 @@ class AnthropicLLMProvider(LLMProvider):
                 messages=[{"role": "user", "content": prompt}]
             )
             return message.content[0].text
+        except self.RateLimitError:
+            raise RuntimeError("Anthropic rate limit exceeded. Please retry later.")
+        except self.APIConnectionError as e:
+            raise RuntimeError(f"Anthropic connection error: {str(e)}")
+        except self.APIError as e:
+            raise RuntimeError(f"Anthropic API error: {str(e)}")
+    
+    def stream(self, prompt: str, max_tokens: Optional[int] = None):
+        """Stream text using Anthropic Claude (yields chunks)."""
+        max_tokens = max_tokens or self.max_tokens
+        try:
+            with self.client.messages.stream(
+                model=self.model_name,
+                max_tokens=max_tokens,
+                temperature=self.temperature,
+                messages=[{"role": "user", "content": prompt}]
+            ) as stream:
+                for text in stream.text_stream:
+                    yield text
         except self.RateLimitError:
             raise RuntimeError("Anthropic rate limit exceeded. Please retry later.")
         except self.APIConnectionError as e:
@@ -163,6 +219,27 @@ class GroqLLMProvider(LLMProvider):
                 temperature=self.temperature
             )
             return response.choices[0].message.content
+        except self.RateLimitError:
+            raise RuntimeError("Groq rate limit exceeded. Please retry later.")
+        except self.APIConnectionError as e:
+            raise RuntimeError(f"Groq connection error: {str(e)}")
+        except self.APIError as e:
+            raise RuntimeError(f"Groq API error: {str(e)}")
+    
+    def stream(self, prompt: str, max_tokens: Optional[int] = None):
+        """Stream text using Groq API (yields chunks)."""
+        max_tokens = max_tokens or self.max_tokens
+        try:
+            stream = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+                temperature=self.temperature,
+                stream=True
+            )
+            for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
         except self.RateLimitError:
             raise RuntimeError("Groq rate limit exceeded. Please retry later.")
         except self.APIConnectionError as e:

@@ -290,6 +290,46 @@ curl -X POST http://localhost:8000/query \
 - top_k parameter
 - Different queries or top_k values use different cache entries
 
+### M7.5: Real Streaming Responses (Optional)
+
+Stream generated text in real-time using provider-level streaming:
+
+**1. Use the streaming endpoint:**
+```bash
+curl -X POST http://localhost:8000/query/stream \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is machine learning?", "top_k": 3}'
+```
+
+**2. Response format (Server-Sent Events):**
+```
+data: Machine
+data:  learning
+data:  is
+data:  a
+data:  branch
+...
+data: [DONE]
+event: metadata
+data: {'sources': ['doc1_0', 'doc2_1'], 'num_chunks_retrieved': 2, 'has_sufficient_context': True}
+```
+
+**3. Behavior:**
+- Streams generated text chunk-by-chunk as it's generated
+- Uses real provider-level streaming (OpenAI, Anthropic, Groq)
+- Not simulated or split from completed response
+- Respects M7.2 authentication (X-API-Key header required)
+- Respects M7.3 rate limiting
+- Does NOT use M7.4 cache (always generates fresh response)
+- Final metadata sent in separate event after [DONE]
+
+**4. Benefits over non-streaming:**
+- User sees response appearing in real-time
+- Reduced perceived latency
+- Better UX for longer responses
+- Useful for chatbots and interactive UIs
+
 ### Run M1: Document Chunking
 
 ```bash

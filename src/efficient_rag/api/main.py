@@ -7,6 +7,7 @@ import time
 from collections import defaultdict
 from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from typing import Optional
 from .schemas import QueryRequest, QueryResponse, HealthResponse, ErrorResponse
 from .dependencies import RAGPipeline, get_rag_pipeline
@@ -329,6 +330,73 @@ async def query_endpoint(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+@app.post("/query/stream")
+async def query_stream_endpoint(
+    request: QueryRequest,
+    pipeline: RAGPipeline = Depends(get_rag_pipeline),
+    api_key: str = Depends(check_rate_limit)
+):
+    """
+    Stream query results with real LLM streaming.
+    
+    Streams generated text as Server-Sent Events (text/event-stream).
+    Uses actual provider-level streaming, not simulated.
+    
+    Args:
+        request: Query request with query text and top_k
+        pipeline: RAG pipeline (injected dependency)
+        api_key: Validated API key (rate limit checked)
+    
+    Returns:
+        StreamingResponse with streamed text chunks and final metadata
+    """
+    async def stream_generator():
+        try:
+            # Perform RAG retrieval (not cached for streaming)
+            context = pipeline.hybrid_retriever.search(request.query, top_k=request.top_k)
+            
+            # Build context string
+            context_text = "\n\n".join([f"[{r['chunk_id']}] {r['text']}" for r in context])
+            
+            # Create grounded prompt
+            prompt = f"""You are a helpful assistant. Answer the following question using ONLY the provided context.
+If the context does not contain enough information to answer the question, say so explicitly.
+Do not use any outside knowledge.
+
+Context:
+{context_text}
+
+Question: {request.query}
+
+Answer:"""
+            
+            # Stream the response
+            llm = pipeline._rag_generator.llm
+            full_response = ""
+            
+            for chunk in llm.stream(prompt, max_tokens=512):
+                full_response += chunk
+                # Send chunk as SSE
+                yield f"data: {chunk}\n\n"
+            
+            # Send final metadata
+            metadata = {
+                "sources": list(set([r["chunk_id"] for r in context])),
+                "num_chunks_retrieved": len(context),
+                "has_sufficient_context": len(context_text) > 100
+            }
+            
+            yield f"data: [DONE]\n\n"
+            yield f"event: metadata\ndata: {str(metadata)}\n\n"
+        
+        except ValueError as e:
+            yield f"event: error\ndata: {str(e)}\n\n"
+        except RuntimeError as e:
+            yield f"event: error\ndata: {str(e)}\n\n"
+        except Exception as e:
+            yield f"event: error\ndata: Internal server error\n\n"
+    
+    return StreamingResponse(stream_generator(), media_type="text/event-stream")
 
 
 
