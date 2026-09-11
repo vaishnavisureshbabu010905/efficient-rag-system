@@ -353,7 +353,7 @@ async def query_stream_endpoint(
     async def stream_generator():
         try:
             # Perform RAG retrieval (not cached for streaming)
-            context = pipeline.hybrid_retriever.search(request.query, top_k=request.top_k)
+            context = pipeline._rag_generator.retriever.search(request.query, top_k=request.top_k)
             
             # Build context string
             context_text = "\n\n".join([f"[{r['chunk_id']}] {r['text']}" for r in context])
@@ -394,7 +394,10 @@ Answer:"""
         except RuntimeError as e:
             yield f"event: error\ndata: {str(e)}\n\n"
         except Exception as e:
-            yield f"event: error\ndata: Internal server error\n\n"
+            # Log actual exception for debugging
+            import traceback
+            error_msg = f"{type(e).__name__}: {str(e)}"
+            yield f"event: error\ndata: {error_msg}\n\n"
     
     return StreamingResponse(stream_generator(), media_type="text/event-stream")
 

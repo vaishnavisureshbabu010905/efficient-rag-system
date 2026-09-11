@@ -547,3 +547,58 @@ def test_existing_query_endpoint_unchanged(patch_rag_pipeline, reset_rate_limite
     data = response.json()
     assert "answer" in data
     assert "sources" in data
+
+
+def test_stream_endpoint_retriever_access_regression(reset_rate_limiter, reset_query_cache):
+    """Regression test: streaming endpoint correctly accesses pipeline._rag_generator.retriever.
+    
+    This test ensures the bug where pipeline.hybrid_retriever (non-existent) was being accessed
+    instead of pipeline._rag_generator.retriever does not regress.
+    """
+    import os
+    from unittest.mock import patch, Mock, MagicMock
+    from efficient_rag.api.main import app
+    
+    client = TestClient(app)
+    
+    # Create a proper mock that supports both the old path (pipeline.query) and new path (pipeline._rag_generator.retriever.search)
+    mock_pipeline = Mock()
+    mock_pipeline.query = Mock(return_value={
+        "query": "test query",
+        "answer": "test answer",
+        "sources": ["c0"],
+        "has_sufficient_context": True,
+        "num_chunks_retrieved": 1,
+        "retrieval_results": [{"chunk_id": "c0", "fusion_score": 0.9, "rank": 1}]
+    })
+    
+    # Set up mock for streaming endpoint
+    mock_retriever = Mock()
+    mock_retriever.search = Mock(return_value=[
+        {"chunk_id": "c0", "text": "chunk 0 text", "metadata": {"f": "f0"}, "fusion_score": 0.9, "rank": 1}
+    ])
+    
+    mock_llm = Mock()
+    mock_llm.stream = Mock(return_value=["generated", " ", "response"])
+    
+    mock_rag_gen = Mock()
+    mock_rag_gen.retriever = mock_retriever
+    mock_rag_gen.llm = mock_llm
+    
+    mock_pipeline._rag_generator = mock_rag_gen
+    
+    with patch.dict(os.environ, {"RAG_API_KEY": "test-key"}, clear=False):
+        with patch("efficient_rag.api.dependencies.RAGPipeline", return_value=mock_pipeline):
+            with patch("efficient_rag.api.dependencies.get_rag_pipeline", return_value=mock_pipeline):
+                response = client.post(
+                    "/query/stream",
+                    json={"query": "test", "top_k": 5},
+                    headers={"X-API-Key": "test-key"}
+                )
+                # Should return 200, not 500 with error
+                assert response.status_code == 200
+                content = response.text
+                # Verify no AttributeError (would have "AttributeError" if trying to access pipeline.hybrid_retriever)
+                assert "AttributeError" not in content, f"AttributeError in response: {content}"
+                # Verify we got data events
+                assert "data:" in content
